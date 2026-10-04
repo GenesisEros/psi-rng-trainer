@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+  PSI-RNG : a personal TK (psychokinesis) practice + testing tool.
+  =================================================================
+  Everything lives in this ONE file: the page layout (HTML), the look (CSS),
+  and the brains (JavaScript). No internet needed, nothing is sent anywhere.
+  Your data is saved in the browser's own storage (localStorage) on your phone.
+
+  Reading order if you're learning:
+    1. <style>   : colors, sizes, the green "codec" look
+    2. <body>    : the screens (Practice, Stats, History, Guide)
+    3. <script>  : the logic, split into numbered sections with comments
+-->
+<meta charset="utf-8">
+<!-- Make it fit a phone screen and respect the iPhone notch -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Lets it run full-screen if you "Add to Home Screen" on iPhone -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PSI-RNG">
+<meta name="theme-color" content="#030a05">
+<title>PSI-RNG // TK Practice</title>
+<!-- Home-screen icon + app info (used when hosted on the web) -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+
+<style>
+/* ===================================================================
+   1. STYLE  (the look)
+   Colors are stored in "variables" so you can change the whole theme
+   by editing just these few lines.
+   =================================================================== */
+:root{
+  --bg:#030a05;          /* near-black with a hint of green */
+  --panel:#071a0d;       /* slightly lighter boxes */
+  --line:#1f5c32;        /* border lines */
+  --green:#5dff8f;       /* main codec green */
+  --green-dim:#2f9e57;   /* softer green for secondary text */
+  --green-faint:#12361f; /* very dark green for fills */
+  --miss:#7a8a80;        /* grey for misses */
+  --warn:#ffcc4d;        /* amber for warnings */
+  --bad:#ff6b6b;         /* red for dangerous buttons */
+  --font: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--green);font-family:var(--font);font-size:16px}
+body{
+  min-height:100vh;
+  /* leave room for the notch and the bottom tab bar */
+  padding:calc(env(safe-area-inset-top) + 8px) 14px calc(env(safe-area-inset-bottom) + 84px);
+  touch-action:manipulation; /* stops double-tap zoom on fast tapping */
+}
+/* Faint horizontal scanlines over everything, like an old CRT codec screen */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:repeating-linear-gradient(to bottom,rgba(93,255,143,.035) 0 1px,transparent 1px 3px);
+}
+h1,h2,h3{margin:.3em 0 .4em;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+h1{font-size:1.15rem} h2{font-size:1rem} h3{font-size:.9rem;color:var(--green-dim)}
+p{line-height:1.45;margin:.4em 0 .8em}
+small,.dim{color:var(--green-dim)}
+a{color:var(--green)}
+
+/* Header bar that looks like a codec frequency readout */
+.codec-head{display:flex;justify-content:space-between;align-items:center;
+  border:1px solid var(--line);background:var(--panel);padding:8px 12px;border-radius:6px;margin-bottom:12px;
+  box-shadow:0 0 12px rgba(93,255,143,.12) inset}
+.codec-head .freq{font-size:1.4rem;font-weight:700;text-shadow:0 0 8px rgba(93,255,143,.6)}
+.codec-head .tag{font-size:.7rem;color:var(--green-dim);text-align:right;line-height:1.3}
+
+/* Generic box */
+.panel{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:12px;margin-bottom:12px}
+.panel.warn{border-color:var(--warn);color:var(--warn)}
+
+/* Form controls */
+label{display:block;font-size:.8rem;color:var(--green-dim);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.05em}
+select,input[type=text],textarea{
+  width:100%;background:#020703;color:var(--green);border:1px solid var(--line);border-radius:6px;
+  padding:11px 10px;font:inherit;font-size:16px; /* 16px stops iPhone auto-zoom */
+}
+textarea{min-height:60px;resize:vertical}
+
+/* Segmented "pick one" buttons */
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1 1 0;min-width:60px}
+
+/* Buttons */
+button{
+  font:inherit;color:var(--green);background:var(--green-faint);border:1px solid var(--line);
+  border-radius:6px;padding:12px 10px;font-size:.95rem;letter-spacing:.04em;cursor:pointer;
+}
+button:active{transform:scale(.98)}
+button.on{background:var(--green);color:#021006;border-color:var(--green);font-weight:700}
+button.primary{width:100%;background:var(--green);color:#021006;font-weight:700;font-size:1.05rem;padding:15px}
+button.ghost{background:transparent}
+button.danger{border-color:var(--bad);color:var(--bad);background:transparent}
+button:disabled{opacity:.35}
+.row{display:flex;gap:8px} .row>*{flex:1}
+
+/* The big round DRAW button */
+#drawBtn{
+  display:block;margin:14px auto;width:min(62vw,240px);height:min(62vw,240px);border-radius:50%;
+  font-size:1.6rem;font-weight:700;background:radial-gradient(circle at 50% 40%,#0f4a24,#041509);
+  border:2px solid var(--green);box-shadow:0 0 22px rgba(93,255,143,.35),0 0 2px var(--green) inset;
+  text-shadow:0 0 8px rgba(93,255,143,.8);white-space:pre-line;
+}
+#drawBtn:disabled{box-shadow:none;border-color:var(--line)}
+
+/* Result readout */
+.result{text-align:center;min-height:92px}
+.result .sym{font-size:3rem;line-height:1.1}
+.result .verdict{font-size:1.3rem;font-weight:700;letter-spacing:.2em}
+.hit{color:var(--green);text-shadow:0 0 12px rgba(93,255,143,.9)}
+.miss{color:var(--miss)}
+.flash{animation:flash .5s ease-out}
+@keyframes flash{0%{background:rgba(93,255,143,.35)}100%{background:transparent}}
+
+/* Progress bar */
+.bar{height:8px;border:1px solid var(--line);border-radius:4px;overflow:hidden;margin:6px 0}
+.bar>div{height:100%;background:var(--green);width:0;transition:width .2s}
+
+/* Little squares showing recent hits/misses */
+.strip{display:flex;flex-wrap:wrap;gap:3px;margin-top:6px}
+.strip i{width:10px;height:10px;border-radius:2px;background:#26332b;display:inline-block}
+.strip i.h{background:var(--green);box-shadow:0 0 4px var(--green)}
+
+/* Stat grid */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center}
+.stats div{border:1px solid var(--line);border-radius:6px;padding:6px 2px}
+.stats b{display:block;font-size:1.15rem}
+.stats span{font-size:.68rem;color:var(--green-dim);text-transform:uppercase}
+
+/* Tables (stats screen) - scroll sideways on small phones */
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:.78rem}
+th,td{border-bottom:1px solid var(--green-faint);padding:6px 4px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--green-dim);font-weight:400;text-transform:uppercase;font-size:.68rem}
+
+/* Stat "cards" on the Stats screen */
+.grp{border-top:1px solid var(--green-faint);padding:8px 0}
+.grp:first-of-type{border-top:0}
+.grp-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.85rem}
+.grp-nums{display:grid;grid-template-columns:1fr 1fr 1.6fr 1fr 1.2fr;gap:4px;text-align:center;margin-top:4px}
+.grp-nums b{display:block;font-size:.95rem}
+.grp-nums span{font-size:.6rem;color:var(--green-dim);text-transform:uppercase}
+
+/* History items */
+.sess{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--panel)}
+.sess summary{list-style:none;cursor:pointer}
+.sess summary::-webkit-details-marker{display:none}
+.badge{display:inline-block;font-size:.65rem;padding:2px 6px;border-radius:10px;border:1px solid var(--line);margin-right:4px;text-transform:uppercase}
+.badge.intent{border-color:var(--green);}
+.badge.control{border-color:#6ab7ff;color:#9fd0ff}
+.badge.abandoned{border-color:var(--warn);color:var(--warn)}
+
+/* Bottom tab bar */
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:#020703;border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);z-index:40}
+nav button{flex:1;border:0;border-radius:0;background:transparent;padding:14px 4px;font-size:.78rem;color:var(--green-dim)}
+nav button.on{color:var(--green);background:var(--green-faint);font-weight:700}
+
+.screen{display:none} .screen.on{display:block}
+ul{padding-left:1.2em} li{margin:.35em 0;line-height:1.4}
+.big-num{font-size:2rem;font-weight:700}
+.center{text-align:center}
+
+/* Simple pop-up dialog (used for "type DELETE to confirm") */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+.modal.on{display:flex}
+.modal .panel{max-width:420px;width:100%}
+</style>
+</head>
+<body>
+
+<!-- ===================================================================
+     2. SCREENS  (what you see)
+     Only one ".screen" is visible at a time; the tab bar switches them.
+     =================================================================== -->
+
+<div class="codec-head">
+  <div class="freq">140.85</div>
+  <div class="tag">PSI-RNG // TK TRAINER<br><span id="headStatus">STANDBY</span></div>
+</div>
+
+<!-- ---------------- PRACTICE: session setup ---------------- -->
+<section id="scrSetup" class="screen on">
+  <div id="resumeBox" class="panel warn" style="display:none"></div>
+
+  <div class="panel">
+    <h1>New session</h1>
+    <p class="dim">Set everything up <b>before</b> you start. Once a session begins, the number of trials is locked.</p>
+
+    <label>Mode</label>
+    <div class="seg" id="segMode">
+      <button data-v="binary" class="on">High / Low<br><small>1 in 2</small></button>
+      <button data-v="quad">4 Symbols<br><small>1 in 4</small></button>
+    </div>
+
+    <label>Number of trials (locked once started)</label>
+    <div class="seg" id="segTrials">
+      <button data-v="25">25</button><button data-v="50">50</button>
+      <button data-v="100" class="on">100</button><button data-v="200">200</button>
+    </div>
+
+    <label>Session type</label>
+    <div class="seg" id="segType">
+      <button data-v="intent" class="on">Intent<br><small>I'm trying</small></button>
+      <button data-v="control">Control<br><small>Not trying</small></button>
+    </div>
+
+    <label>Target</label>
+    <div class="seg" id="segTargetMode">
+      <button data-v="per" class="on">Pick each trial</button>
+      <button data-v="fixed">Same all session</button>
+    </div>
+    <div id="fixedTargetWrap" style="display:none">
+      <label>Fixed target for the whole session</label>
+      <div class="seg" id="segFixedTarget"></div>
+    </div>
+
+    <label for="condSel">Condition (optional)</label>
+    <select id="condSel">
+      <option value="">— none —</option>
+      <option value="normal" selected>normal</option>
+      <option value="after fasting">after fasting</option>
+      <option value="after breath work">after breath work</option>
+      <option value="fasting + breath work">fasting + breath work</option>
+      <option value="__custom">custom…</option>
+    </select>
+    <input type="text" id="condCustom" placeholder="type your own condition" style="display:none;margin-top:6px" maxlength="60">
+
+    <label for="notes">Notes (optional)</label>
+    <textarea id="notes" placeholder="How you feel, time of day, sleep, anything…" maxlength="500"></textarea>
+
+    <div style="height:12px"></div>
+    <button class="primary" id="startBtn">START SESSION</button>
+  </div>
+</section>
+
+<!-- ---------------- PRACTICE: running session ---------------- -->
+<section id="scrRun" class="screen">
+  <div class="panel">
+    <div class="row" style="align-items:center">
+      <div><b id="runTitle">—</b><br><small id="runSub">—</small></div>
+      <div style="text-align:right;flex:0 0 auto"><span class="big-num" id="runCount">0</span><small> / <span id="runTotal">0</span></small></div>
+    </div>
+    <div class="bar"><div id="runBar"></div></div>
+    <div class="stats">
+      <div><b id="runHits">0</b><span>Hits</span></div>
+      <div><b id="runExp">0</b><span>Expected</span></div>
+      <div><b id="runRate">–</b><span>Hit rate</span></div>
+    </div>
+  </div>
+
+  <div class="panel center" id="targetPanel">
+    <h3 id="targetPrompt">Pick your target</h3>
+    <div class="seg" id="segRunTarget"></div>
+    <div id="fixedTargetShow" style="display:none"></div>
+  </div>
+
+  <button id="drawBtn" disabled>DRAW</button>
+
+  <div class="panel result" id="resultBox"><small class="dim">Result appears here</small></div>
+
+  <div class="panel">
+    <small class="dim">This session (green = hit)</small>
+    <div class="strip" id="runStrip"></div>
+  </div>
+
+  <button class="ghost" id="abandonBtn" style="width:100%">End early (mark as ABANDONED)</button>
+</section>
+
+<!-- ---------------- PRACTICE: session finished ---------------- -->
+<section id="scrDone" class="screen">
+  <div class="panel" id="doneBox"></div>
+  <button class="primary" id="newSessBtn">NEW SESSION</button>
+</section>
+
+<!-- ---------------- STATS ---------------- -->
+<section id="scrStats" class="screen">
+  <div id="statsBox"></div>
+</section>
+
+<!-- ---------------- HISTORY ---------------- -->
+<section id="scrHistory" class="screen">
+  <div class="panel">
+    <h1>Data</h1>
+    <div class="row">
+      <button id="csvBtn">Export CSV</button>
+      <button id="jsonBtn">Export JSON</button>
+    </div>
+    <div style="height:8px"></div>
+    <div class="row">
+      <button id="importBtn">Import JSON backup</button>
+      <button class="danger" id="deleteAllBtn">Delete all…</button>
+    </div>
+    <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+    <p class="dim" id="dataMsg" style="margin-bottom:0"></p>
+  </div>
+  <h1>Sessions</h1>
+  <div id="historyList"></div>
+</section>
+
+<!-- ---------------- GUIDE (honesty rules, z-score, about) ---------------- -->
+<section id="scrGuide" class="screen">
+  <div class="panel">
+    <h1>How to stay honest</h1>
+    <p class="dim">You're both the test subject and the scientist. These rules keep your hopes from bending the results.</p>
+    <ul>
+      <li><b>Decide the count first.</b> Pick 25/50/100/200 before you start. No stopping because it's going well, no quitting because it's going badly. (Ending early is allowed, but it's logged as ABANDONED and still counts.)</li>
+      <li><b>Pick the target before the draw.</b> The app forces this: DRAW stays locked until a target is chosen.</li>
+      <li><b>Run control sessions.</b> Same setup, but you don't try. They show what plain luck looks like on your phone.</li>
+      <li><b>Keep every session.</b> Bad days are data too. Tossing them is how people fool themselves.</li>
+      <li><b>Compare over weeks, not minutes.</b> One session tells you almost nothing. Look at Intent vs Control, and condition vs condition, after hundreds or thousands of trials.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h1>What the z-score means</h1>
+    <p>The z-score asks: <i>"How far above (or below) pure luck am I, measured in units of normal luck-wobble?"</i></p>
+    <p class="center"><b>z = (hits − N×p) ÷ √(N×p×(1−p))</b></p>
+    <p class="dim">N = number of trials, p = chance of a hit (0.5 for High/Low, 0.25 for 4 symbols). N×p is how many hits luck alone would give you.</p>
+    <ul>
+      <li><b>z between −1 and +1:</b> right at chance. Totally normal.</li>
+      <li><b>z around +2:</b> <i>interesting</i>. Luck does this only about 1 time in 44.</li>
+      <li><b>z of +3 or more:</b> <i>strong</i>. Luck does this about 1 time in 740.</li>
+      <li><b>Negative z:</b> fewer hits than luck. Usually just luck too (some researchers call a steady negative "psi-missing").</li>
+    </ul>
+    <p class="dim"><b>Caution:</b> if you run 20 sessions, one of them will probably hit z≈2 by pure luck. That's why a single good session means little. What matters is the <b>cumulative</b> Intent number staying high over many sessions while Control stays near zero. Expect to need thousands of trials before anything is convincing.</p>
+    <p class="dim">The p-value shown is "one-tailed": the chance luck alone would give a score at least this high. Smaller = harder to explain by luck. It uses the standard bell-curve approximation.</p>
+  </div>
+
+  <div class="panel">
+    <h1>About</h1>
+    <p>Each draw uses <b>crypto.getRandomValues</b>, your phone's built-in cryptographic random number generator (the same kind used to make encryption keys). It's seeded from hardware noise inside the device, so it's unpredictable and unbiased; no pattern you could learn or "guess." (It's not a quantum hardware RNG like the PEAR lab used, but it's as close to truly random as a phone gets.)</p>
+    <p>Draws use "rejection sampling" so every outcome is exactly equally likely.</p>
+    <p>All data stays on this device in the browser's storage. Nothing is sent anywhere. <b>Export a JSON backup now and then</b>: clearing Safari's website data would erase it.</p>
+    <p class="dim" id="storageInfo"></p>
+  </div>
+</section>
+
+<!-- Pop-up used for confirmations -->
+<div class="modal" id="modal">
+  <div class="panel" id="modalBody"></div>
+</div>
+
+<!-- Bottom tab bar -->
+<nav id="tabs">
+  <button data-tab="practice" class="on">PRACTICE</button>
+  <button data-tab="stats">STATS</button>
+  <button data-tab="history">HISTORY</button>
+  <button data-tab="guide">GUIDE</button>
+</nav>
+
+<script>
+/* =====================================================================
+   3. LOGIC
+   ===================================================================== */
+"use strict";
+
+/* ---------- 3.1  Settings for each mode ----------
+   p = probability of a hit by pure chance.
+   options = the possible outcomes a draw can produce. */
+const MODES = {
+  binary: { name: "High / Low", p: 0.5,  options: ["HIGH", "LOW"] },
+  quad:   { name: "4 Symbols",  p: 0.25, options: ["▲", "●", "■", "★"] }
+};
+// Friendly names for the symbols (used in CSV so a spreadsheet shows words)
+const SYMBOL_NAMES = { "▲": "triangle", "●": "circle", "■": "square", "★": "star", "HIGH": "HIGH", "LOW": "LOW" };
+
+const STORE_KEY = "psiRng.v1";       // where all sessions are saved
+const PREFS_KEY = "psiRng.prefs.v1"; // remembers your last setup choices
+
+/* ---------- 3.2  Random numbers ----------
+   randomInt(n) returns a whole number from 0 to n-1, each equally likely.
+   "Rejection sampling": we take a random 32-bit number; if it falls in the
+   small leftover zone that would make some answers slightly more common,
+   we throw it away and draw again. That keeps it perfectly fair. */
+function randomInt(n) {
+  const buf = new Uint32Array(1);
+  const limit = Math.floor(0x100000000 / n) * n; // biggest multiple of n below 2^32
+  while (true) {
+    crypto.getRandomValues(buf);
+    if (buf[0] < limit) return buf[0] % n;
+  }
+}
+
+/* ---------- 3.3  Saving and loading ----------
+   localStorage only stores text, so we convert our data to JSON text. */
+let db = { version: 1, sessions: [] };
+let storageOK = true;
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) db = JSON.parse(raw);
+    if (!Array.isArray(db.sessions)) db.sessions = [];
+  } catch (e) { storageOK = false; }
+}
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); storageOK = true; }
+  catch (e) { storageOK = false; alert("Warning: could not save to this device's storage. Export your data!"); }
+}
+function loadPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch (e) { return {}; } }
+function savePrefs(p) { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (e) {} }
+
+/* ---------- 3.4  Statistics ----------
+   These are the math functions. Each trial has its own p (chance of hit),
+   so we can safely combine sessions from different modes:
+     expected hits = sum of p for every trial
+     variance      = sum of p×(1−p) for every trial
+     z             = (hits − expected) / √variance
+   For one session in one mode this is exactly  (hits − N×p) / √(N×p×(1−p)). */
+
+function zScore(hits, n, p) {
+  if (!n) return null;
+  return (hits - n * p) / Math.sqrt(n * p * (1 - p));
+}
+
+// Complementary error function (Numerical Recipes approximation, error < 1.2e-7).
+// We need it to turn a z-score into a probability.
+function erfc(x) {
+  const z = Math.abs(x), t = 1 / (1 + 0.5 * z);
+  const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 +
+    t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 +
+    t * (-0.82215223 + t * 0.17087277)))))))));
+  return x >= 0 ? r : 2 - r;
+}
+// One-tailed p-value: chance that luck alone gives a z this high or higher.
+function pOneTailed(z) { return z == null ? null : 0.5 * erfc(z / Math.SQRT2); }
+
+// Add up any list of trials (from one or many sessions).
+function aggregate(sessions) {
+  let n = 0, hits = 0, expected = 0, variance = 0;
+  for (const s of sessions) {
+    const p = MODES[s.mode].p;
+    for (const t of s.trials) {
+      n++; if (t.hit) hits++;
+      expected += p; variance += p * (1 - p);
+    }
+  }
+  const z = n ? (hits - expected) / Math.sqrt(variance) : null;
+  return { sessions: sessions.length, n, hits, expected, rate: n ? hits / n : null,
+           expRate: n ? expected / n : null, z, p: pOneTailed(z) };
+}
+
+// Plain-English reading of a z-score.
+function explainZ(z, n) {
+  if (z == null || n === 0) return "No trials yet.";
+  const odds = pOneTailed(z);
+  let msg;
+  if (z >= 3)       msg = "STRONG: luck alone does this about 1 time in " + fmtOdds(odds) + ".";
+  else if (z >= 2)  msg = "INTERESTING: luck alone does this about 1 time in " + fmtOdds(odds) + ".";
+  else if (z >= 1)  msg = "A bit above chance, but well within normal luck.";
+  else if (z > -1)  msg = "Right at chance. Totally normal.";
+  else if (z > -2)  msg = "A bit below chance, within normal luck.";
+  else              msg = "Well below chance. Probably luck, though some call a steady negative 'psi-missing'.";
+  if (n < 200) msg += " (Only " + n + " trials: too few to mean much yet.)";
+  return msg;
+}
+function fmtOdds(p) { const x = 1 / p; return x >= 1000 ? Math.round(x).toLocaleString() : x.toFixed(0); }
+
+/* ---------- 3.5  Little helpers ---------- */
+const $ = (id) => document.getElementById(id);
+const fmt = (x, d = 2) => (x == null || isNaN(x) ? "–" : x.toFixed(d));
+const pct = (x) => (x == null ? "–" : (x * 100).toFixed(1) + "%");
+const fmtP = (p) => (p == null ? "–" : p < 0.0001 ? "<0.0001" : p.toFixed(4));
+function esc(s) { // stop typed text from being treated as HTML
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function newId() { // random id like "s-lq3x9a-4f2k"
+  return "s-" + Date.now().toString(36) + "-" + randomInt(1e6).toString(36);
+}
+function localTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + " " +
+         d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+function activeSession() { return db.sessions.find((s) => s.status === "in-progress") || null; }
+
+/* ---------- 3.6  Setup screen ----------
+   "setup" holds the choices you make before starting. */
+const prefs = loadPrefs();
+const setup = {
+  mode: prefs.mode || "binary",
+  trials: prefs.trials || 100,
+  type: prefs.type || "intent",
+  targetMode: prefs.targetMode || "per",
+  fixedTarget: null
+};
+
+// Wires up a row of "pick one" buttons. onPick runs when you tap one.
+function bindSeg(segId, current, onPick) {
+  const seg = $(segId);
+  seg.querySelectorAll("button").forEach((b) => {
+    b.classList.toggle("on", b.dataset.v == current);
+    b.onclick = () => {
+      seg.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+      onPick(b.dataset.v);
+    };
+  });
+}
+
+function renderFixedTargetChoices() {
+  const seg = $("segFixedTarget");
+  seg.innerHTML = MODES[setup.mode].options.map((o) => `<button data-v="${o}">${o}</button>`).join("");
+  setup.fixedTarget = null;
+  bindSeg("segFixedTarget", null, (v) => (setup.fixedTarget = v));
+}
+
+function initSetup() {
+  bindSeg("segMode", setup.mode, (v) => { setup.mode = v; renderFixedTargetChoices(); });
+  bindSeg("segTrials", setup.trials, (v) => (setup.trials = Number(v)));
+  bindSeg("segType", setup.type, (v) => (setup.type = v));
+  bindSeg("segTargetMode", setup.targetMode, (v) => {
+    setup.targetMode = v;
+    $("fixedTargetWrap").style.display = v === "fixed" ? "block" : "none";
+  });
+  $("fixedTargetWrap").style.display = setup.targetMode === "fixed" ? "block" : "none";
+  renderFixedTargetChoices();
+
+  $("condSel").onchange = () => {
+    $("condCustom").style.display = $("condSel").value === "__custom" ? "block" : "none";
+  };
+  $("startBtn").onclick = startSession;
+}
+
+function startSession() {
+  if (activeSession()) { alert("Finish or abandon the session in progress first."); return; }
+  if (setup.targetMode === "fixed" && !setup.fixedTarget) { alert("Pick the fixed target first."); return; }
+
+  let condition = $("condSel").value;
+  if (condition === "__custom") condition = $("condCustom").value.trim();
+
+  // Everything about the session is written down BEFORE the first draw.
+  const s = {
+    id: newId(),
+    startedAt: new Date().toISOString(),
+    endedAt: null,
+    mode: setup.mode,
+    p: MODES[setup.mode].p,
+    plannedTrials: setup.trials,
+    type: setup.type,                 // "intent" or "control"
+    targetMode: setup.targetMode,     // "per" (each trial) or "fixed"
+    fixedTarget: setup.targetMode === "fixed" ? setup.fixedTarget : null,
+    condition: condition,
+    notes: $("notes").value.trim(),
+    status: "in-progress",            // later: "complete" or "abandoned"
+    trials: []
+  };
+  db.sessions.push(s);
+  save();
+  savePrefs({ mode: setup.mode, trials: setup.trials, type: setup.type, targetMode: setup.targetMode });
+  $("notes").value = "";
+  run.target = null; run.last = null;
+  showPractice();
+}
+
+/* ---------- 3.7  Running a session ---------- */
+const run = { target: null, last: null, busy: false };
+
+function renderRun() {
+  const s = activeSession(); if (!s) return;
+  const m = MODES[s.mode];
+  const n = s.trials.length, hits = s.trials.filter((t) => t.hit).length;
+
+  $("runTitle").textContent = (s.type === "intent" ? "INTENT" : "CONTROL") + " · " + m.name;
+  $("runSub").textContent = (s.condition || "no condition") + " · chance " + (m.p * 100) + "%";
+  $("runCount").textContent = n;
+  $("runTotal").textContent = s.plannedTrials;
+  $("runBar").style.width = (100 * n / s.plannedTrials) + "%";
+  $("runHits").textContent = hits;
+  $("runExp").textContent = fmt(n * m.p, 1);
+  $("runRate").textContent = n ? pct(hits / n) : "–";
+  $("headStatus").textContent = "SESSION ACTIVE";
+
+  // Target area
+  if (s.targetMode === "fixed") {
+    run.target = s.fixedTarget;
+    $("segRunTarget").style.display = "none";
+    $("fixedTargetShow").style.display = "block";
+    $("fixedTargetShow").innerHTML = `<div class="sym" style="font-size:2.2rem">${esc(s.fixedTarget)}</div><small class="dim">fixed target</small>`;
+    $("targetPrompt").textContent = s.type === "intent" ? "Focus on your target" : "Target (don't try, just draw)";
+  } else {
+    $("segRunTarget").style.display = "flex";
+    $("fixedTargetShow").style.display = "none";
+    $("targetPrompt").textContent = run.target ? "Target locked: " + run.target
+      : (s.type === "intent" ? "Pick your target, then focus" : "Pick a target (don't try to influence)");
+    $("segRunTarget").innerHTML = m.options
+      .map((o) => `<button data-v="${o}" class="${run.target === o ? "on" : ""}" style="font-size:1.4rem;padding:14px 4px">${o}</button>`).join("");
+    $("segRunTarget").querySelectorAll("button").forEach((b) => {
+      b.onclick = () => { run.target = b.dataset.v; renderRun(); };
+    });
+  }
+
+  // DRAW only works once a target is chosen: target ALWAYS comes before the draw.
+  $("drawBtn").disabled = !run.target || run.busy;
+  $("drawBtn").textContent = run.target ? "DRAW" : "PICK\nTARGET";
+
+  // Result of the last draw
+  if (run.last) {
+    const L = run.last;
+    $("resultBox").innerHTML =
+      `<div class="sym ${L.hit ? "hit" : "miss"}">${esc(L.result)}</div>` +
+      `<div class="verdict ${L.hit ? "hit" : "miss"}">${L.hit ? "HIT" : "MISS"}</div>` +
+      `<small class="dim">target was ${esc(L.target)} · trial ${L.n}</small>`;
+  } else {
+    $("resultBox").innerHTML = `<small class="dim">Result appears here</small>`;
+  }
+
+  $("runStrip").innerHTML = s.trials.map((t) => `<i class="${t.hit ? "h" : ""}"></i>`).join("");
+}
+
+function draw() {
+  const s = activeSession();
+  if (!s || !run.target || run.busy) return;
+  const m = MODES[s.mode];
+
+  // THE DRAW: the phone's crypto RNG picks one outcome.
+  const result = m.options[randomInt(m.options.length)];
+  const trial = {
+    n: s.trials.length + 1,
+    ts: new Date().toISOString(),
+    target: run.target,
+    result: result,
+    hit: result === run.target
+  };
+  s.trials.push(trial);
+  run.last = trial;
+
+  // Session finished?
+  if (s.trials.length >= s.plannedTrials) {
+    s.status = "complete";
+    s.endedAt = new Date().toISOString();
+  }
+  save(); // every single trial is saved immediately
+
+  // Per-trial mode: clear target so you must choose again before the next draw.
+  if (s.targetMode === "per") run.target = null;
+
+  // Short lockout so a double-tap can't fire two draws by accident.
+  run.busy = true;
+  setTimeout(() => { run.busy = false; if (activeSession()) renderRun(); }, 350);
+
+  const box = $("resultBox"); box.classList.remove("flash"); void box.offsetWidth; box.classList.add("flash");
+
+  if (s.status === "complete") { run.lastFinished = s.id; showPractice(); }
+  else renderRun();
+}
+
+function abandonSession() {
+  const s = activeSession(); if (!s) return;
+  openModal(`
+    <h2>End session early?</h2>
+    <p>This session will be saved and marked <b style="color:var(--warn)">ABANDONED</b>. It is never deleted, and its ${s.trials.length} trial(s) still count in your stats.</p>
+    <div class="row"><button id="mNo">Keep going</button><button class="danger" id="mYes">Abandon</button></div>`);
+  $("mNo").onclick = closeModal;
+  $("mYes").onclick = () => {
+    s.status = "abandoned"; s.endedAt = new Date().toISOString(); save();
+    closeModal(); run.lastFinished = s.id; run.last = null; run.target = null; showPractice();
+  };
+}
+
+/* ---------- 3.8  Session summary ---------- */
+function sessionSummaryHTML(s) {
+  const a = aggregate([s]);
+  return `
+    <div class="stats">
+      <div><b>${a.hits}</b><span>Hits</span></div>
+      <div><b>${fmt(a.expected, 1)}</b><span>Expected</span></div>
+      <div><b>${pct(a.rate)}</b><span>Hit rate</span></div>
+      <div><b>${a.n}/${s.plannedTrials}</b><span>Trials</span></div>
+      <div><b>${fmt(a.z)}</b><span>z-score</span></div>
+      <div><b>${fmtP(a.p)}</b><span>p (1-tail)</span></div>
+    </div>
+    <p style="margin-top:10px">${esc(explainZ(a.z, a.n))}</p>`;
+}
+
+function renderDone() {
+  const s = db.sessions.find((x) => x.id === run.lastFinished);
+  if (!s) { $("doneBox").innerHTML = ""; return; }
+  $("headStatus").textContent = s.status === "complete" ? "SESSION COMPLETE" : "SESSION ABANDONED";
+  $("doneBox").innerHTML = `
+    <h1>${s.status === "complete" ? "Session complete" : "Session abandoned"}</h1>
+    <p><span class="badge ${s.type}">${s.type}</span>${s.status === "abandoned" ? '<span class="badge abandoned">abandoned</span>' : ""}
+      <small>${MODES[s.mode].name} · ${esc(s.condition || "no condition")}</small></p>
+    ${sessionSummaryHTML(s)}
+    <div class="strip">${s.trials.map((t) => `<i class="${t.hit ? "h" : ""}"></i>`).join("")}</div>
+    <p class="dim" style="margin-top:10px">Saved. One session is a single data point; the Stats tab shows how it adds up over time.</p>`;
+}
+
+/* ---------- 3.9  Stats screen ---------- */
+// Each group of sessions is shown as a small card (fits a phone screen better than a wide table).
+function statRow(label, a) {
+  return `<div class="grp" data-label="${esc(label)}" data-n="${a.n}" data-hits="${a.hits}" data-z="${fmt(a.z)}">
+    <div class="grp-head"><b>${esc(label)}</b><small>${a.sessions} session${a.sessions === 1 ? "" : "s"} · ${a.n} trials</small></div>
+    <div class="grp-nums">
+      <div><b>${a.hits}</b><span>hits</span></div>
+      <div><b>${fmt(a.expected, 1)}</b><span>expected</span></div>
+      <div><b>${pct(a.rate)}</b><span>rate · luck ${a.expRate == null ? "–" : Math.round(a.expRate * 100) + "%"}</span></div>
+      <div><b>${fmt(a.z)}</b><span>z</span></div>
+      <div><b>${fmtP(a.p)}</b><span>p</span></div>
+    </div></div>`;
+}
+function statTable(rows) { return rows.join(""); }
+
+function renderStats() {
+  // Every session that has at least one trial counts, including abandoned ones
+  // (leaving them out would let you quietly drop bad runs).
+  const done = db.sessions.filter((s) => s.trials.length > 0 && s.status !== "in-progress");
+  const intent = done.filter((s) => s.type === "intent");
+  const control = done.filter((s) => s.type === "control");
+  const aI = aggregate(intent), aC = aggregate(control);
+  const abandoned = done.filter((s) => s.status === "abandoned").length;
+
+  let html = `<div class="panel"><h1>Big picture</h1>
+    <div class="stats">
+      <div><b>${fmt(aI.z)}</b><span>Intent z</span></div>
+      <div><b>${fmt(aC.z)}</b><span>Control z</span></div>
+      <div><b>${aI.n + aC.n}</b><span>Total trials</span></div>
+    </div>
+    <p style="margin-top:10px"><b>Intent:</b> ${esc(explainZ(aI.z, aI.n))}</p>
+    <p><b>Control:</b> ${esc(explainZ(aC.z, aC.n))}</p>
+    <p class="dim">What you're hoping to see over time: Intent z climbing and staying above ~2, while Control stays near 0.
+      ${abandoned ? `Includes ${abandoned} abandoned session(s).` : ""}</p></div>`;
+
+  // Intent vs Control, also split by mode
+  const rows = [statRow("Intent (all)", aI), statRow("Control (all)", aC)];
+  for (const mk of Object.keys(MODES)) {
+    const i = intent.filter((s) => s.mode === mk), c = control.filter((s) => s.mode === mk);
+    if (i.length) rows.push(statRow("Intent · " + MODES[mk].name, aggregate(i)));
+    if (c.length) rows.push(statRow("Control · " + MODES[mk].name, aggregate(c)));
+  }
+  html += `<div class="panel"><h2>Intent vs Control</h2>${statTable(rows)}</div>`;
+
+  // Grouped by condition tag
+  const tags = [...new Set(done.map((s) => s.condition || "(none)"))].sort();
+  const tagRows = [];
+  for (const tag of tags) {
+    const inTag = done.filter((s) => (s.condition || "(none)") === tag);
+    const i = inTag.filter((s) => s.type === "intent"), c = inTag.filter((s) => s.type === "control");
+    if (i.length) tagRows.push(statRow(tag + " · intent", aggregate(i)));
+    if (c.length) tagRows.push(statRow(tag + " · control", aggregate(c)));
+  }
+  html += `<div class="panel"><h2>By condition</h2>${tagRows.length ? statTable(tagRows) : '<p class="dim">No sessions yet.</p>'}
+    <p class="dim">Compare e.g. "after fasting · intent" against "normal · intent". Only trust a difference once both have hundreds of trials.</p></div>`;
+
+  html += `<div class="panel"><h3>Key</h3><p class="dim" style="font-size:.8rem">
+    hits = your actual hits · expected = hits luck alone predicts · rate = your hit rate (luck = the rate luck predicts) ·
+    z = z-score · p = one-tailed p-value (chance luck does this well or better).
+    Mixed modes are combined correctly by adding each trial's own odds.</p></div>`;
+
+  $("statsBox").innerHTML = html;
+}
+
+/* ---------- 3.10  History screen ---------- */
+function renderHistory() {
+  const list = [...db.sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  if (!list.length) { $("historyList").innerHTML = '<p class="dim">No sessions yet. Go to PRACTICE to start one.</p>'; return; }
+  $("historyList").innerHTML = list.map((s) => {
+    const a = aggregate([s]);
+    const status = s.status === "in-progress" ? '<span class="badge">in progress</span>'
+      : s.status === "abandoned" ? '<span class="badge abandoned">abandoned</span>' : "";
+    return `<details class="sess"><summary>
+        <span class="badge ${s.type}">${s.type}</span>${status}<small>${localTime(s.startedAt)}</small><br>
+        <b>${a.hits}/${a.n}</b> hits <small>(exp ${fmt(a.expected, 1)})</small> · z <b>${fmt(a.z)}</b>
+        <small> · ${MODES[s.mode].name} · ${esc(s.condition || "no condition")}</small>
+      </summary>
+      <div style="margin-top:8px">
+        ${sessionSummaryHTML(s)}
+        <small class="dim">Target: ${s.targetMode === "fixed" ? "fixed " + esc(s.fixedTarget) : "picked each trial"} · planned ${s.plannedTrials}</small>
+        ${s.notes ? `<p><small>Notes: ${esc(s.notes)}</small></p>` : ""}
+        <div class="strip">${s.trials.map((t) => `<i class="${t.hit ? "h" : ""}" title="${esc(t.target)}→${esc(t.result)}"></i>`).join("")}</div>
+      </div></details>`;
+  }).join("");
+}
+
+/* ---------- 3.11  Export / import / delete ---------- */
+function download(filename, text, type) {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function stamp() { return new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-"); }
+
+// CSV = one row per trial, with the session info repeated on each row.
+// Opens in Excel, Numbers, or Google Sheets.
+function buildCSV() {
+  const cols = ["session_id", "session_start", "session_end", "status", "session_type", "mode", "p",
+    "planned_trials", "target_mode", "condition", "notes", "trial_number", "trial_time", "target", "result", "hit"];
+  const q = (v) => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const lines = [cols.join(",")];
+  for (const s of db.sessions) {
+    for (const t of s.trials) {
+      lines.push([s.id, s.startedAt, s.endedAt, s.status, s.type, s.mode, s.p, s.plannedTrials, s.targetMode,
+        s.condition, s.notes, t.n, t.ts, SYMBOL_NAMES[t.target] || t.target, SYMBOL_NAMES[t.result] || t.result,
+        t.hit ? 1 : 0].map(q).join(","));
+    }
+  }
+  return lines.join("\r\n");
+}
+function exportCSV() { download("psi-rng-" + stamp() + ".csv", buildCSV(), "text/csv"); msg("CSV exported."); }
+function exportJSON() {
+  download("psi-rng-backup-" + stamp() + ".json", JSON.stringify({ app: "psi-rng", exportedAt: new Date().toISOString(), ...db }, null, 2), "application/json");
+  msg("JSON backup exported.");
+}
+
+// Import MERGES: sessions already on this device (same id) are kept, new ones added.
+// Nothing gets deleted by importing.
+function importJSON(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data.sessions)) throw new Error("No sessions found in file");
+      const have = new Set(db.sessions.map((s) => s.id));
+      let added = 0;
+      for (const s of data.sessions) {
+        if (!s || !s.id || !MODES[s.mode] || !Array.isArray(s.trials) || have.has(s.id)) continue;
+        // A half-finished session from a backup can't be resumed here, so it is kept as abandoned.
+        if (s.status === "in-progress") s.status = "abandoned";
+        db.sessions.push(s); added++;
+      }
+      save(); msg(`Imported ${added} new session(s). ${data.sessions.length - added} skipped (already here or invalid).`);
+      renderAll();
+    } catch (e) { msg("Import failed: " + e.message); }
+  };
+  reader.readAsText(file);
+}
+
+function deleteAll() {
+  openModal(`
+    <h2 style="color:var(--bad)">Delete ALL data?</h2>
+    <p>This erases every session on this device. It cannot be undone. Export a backup first if you might want it.</p>
+    <label>Type DELETE to confirm</label>
+    <input type="text" id="mConfirm" autocomplete="off" autocapitalize="characters">
+    <div style="height:10px"></div>
+    <div class="row"><button id="mNo">Cancel</button><button class="danger" id="mYes" disabled>Delete everything</button></div>`);
+  $("mConfirm").oninput = () => ($("mYes").disabled = $("mConfirm").value.trim() !== "DELETE");
+  $("mNo").onclick = closeModal;
+  $("mYes").onclick = () => {
+    if ($("mConfirm").value.trim() !== "DELETE") return;
+    db.sessions = []; save(); closeModal(); msg("All data deleted."); run.last = null; renderAll();
+  };
+}
+function msg(t) { $("dataMsg").textContent = t; }
+
+/* ---------- 3.12  Pop-up dialog ---------- */
+function openModal(html) { $("modalBody").innerHTML = html; $("modal").classList.add("on"); }
+function closeModal() { $("modal").classList.remove("on"); }
+
+/* ---------- 3.13  Switching screens ---------- */
+let currentTab = "practice";
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("on", s.id === id));
+}
+function showPractice() {
+  const s = activeSession();
+  if (s) { showScreen("scrRun"); renderRun(); }
+  else if (run.lastFinished) { showScreen("scrDone"); renderDone(); }
+  else { showScreen("scrSetup"); $("headStatus").textContent = "STANDBY"; }
+}
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+  if (tab === "practice") showPractice();
+  else if (!activeSession()) $("headStatus").textContent = "STANDBY";
+  if (tab === "stats") { renderStats(); showScreen("scrStats"); }
+  if (tab === "history") { renderHistory(); showScreen("scrHistory"); }
+  if (tab === "guide") { renderGuide(); showScreen("scrGuide"); }
+  window.scrollTo(0, 0);
+}
+function renderGuide() {
+  $("storageInfo").textContent = storageOK
+    ? `Storage working. ${db.sessions.length} session(s) saved on this device.`
+    : "⚠ Storage is NOT working here (some file viewers block it). Data will be lost when you close this page.";
+}
+function renderAll() { switchTab(currentTab); }
+
+/* ---------- 3.14  Start the app ---------- */
+load();
+// Quick check that storage actually works (it doesn't in some iPhone file previews).
+try { localStorage.setItem("psiRng.test", "1"); localStorage.removeItem("psiRng.test"); } catch (e) { storageOK = false; }
+
+initSetup();
+$("drawBtn").onclick = draw;
+$("abandonBtn").onclick = abandonSession;
+$("newSessBtn").onclick = () => { run.lastFinished = null; run.last = null; showPractice(); };
+$("csvBtn").onclick = exportCSV;
+$("jsonBtn").onclick = exportJSON;
+$("importBtn").onclick = () => $("importFile").click();
+$("importFile").onchange = (e) => { if (e.target.files[0]) importJSON(e.target.files[0]); e.target.value = ""; };
+$("deleteAllBtn").onclick = deleteAll;
+document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => switchTab(b.dataset.tab)));
+
+if (!storageOK) {
+  $("resumeBox").style.display = "block";
+  $("resumeBox").innerHTML = "⚠ This viewer can't save data. Open the file in Safari (or from a web address) so your sessions are kept.";
+}
+if (activeSession()) {
+  // A session was left running (e.g. phone locked). It picks up right where it left off.
+  $("headStatus").textContent = "RESUMING";
+}
+showPractice();
+</script>
+</body>
+</html>
